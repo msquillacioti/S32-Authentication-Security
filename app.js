@@ -5,7 +5,10 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+// const encrypt = require("mongoose-encryption");
+// const md5 = require("md5");    // Was used for level 3 authentication.
+const bcrypt = require("bcrypt");
+const saltRounds = 12;
 
 
 const app = express();
@@ -24,12 +27,13 @@ const userSchema = new mongoose.Schema ({
   password: String
 });
 
-// Decrypts the password of the user, using the key that is stored in the .env file.
-userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
+// // This section was used for level 2 authentication, and requires mongoose-encryption from the top.
+// // Encrypts ONLY the password of the user, using the key that is stored in the .env file, when newUser is "saved" later.
+// userSchema.plugin(encrypt, {secret: process.env.SECRET, encryptedFields: ["password"]});
+
+
 
 const User = new mongoose.model("User", userSchema);
-
-
 
 
 app.get("/", function(req, res){
@@ -47,16 +51,19 @@ app.get("/register", function(req, res){
 
 
 app.post("/register", function(req, res){
-  const newUser = new User({
-    email: req.body.username,
-    password: req.body.password
-  });
-  newUser.save(function(err){
-    if (err) {
-      console.log(err);
-    } else {
-      res.render("secrets");
-    }
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+    const newUser = new User({
+      email: req.body.username,
+      password: hash
+    });
+
+    newUser.save(function(err){
+      if (err) {
+        console.log(err);
+      } else {
+        res.render("secrets");
+      }
+    });
   });
 });
 
@@ -70,10 +77,11 @@ app.post("/login", function(req, res){
       console.log(err);
     } else {
       if (foundUser) {
-        if (foundUser.password === password) {
-          // Then they are the correct user.
-          res.render("secrets");
-        }
+        bcrypt.compare(password, foundUser.password, function(err, result) {
+          if (result === true) {         // Then they are the correct user.
+            res.render("secrets");
+          }
+        });
       }
     }
   });
