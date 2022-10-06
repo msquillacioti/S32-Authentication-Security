@@ -23,8 +23,6 @@ const findOrCreate = require('mongoose-findOrCreate');
 
 
 
-
-
 const app = express();
 
 app.use(express.static("public"));
@@ -45,7 +43,8 @@ mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
 const userSchema = new mongoose.Schema ({
   email: String,
   password: String,
-  googleId: String
+  googleId: String,
+  secret: String
 });
 
 // // This section was used for level 2 authentication, and requires mongoose-encryption from the top.
@@ -88,11 +87,11 @@ passport.use(new GoogleStrategy({
 
 
 
+//****************** app.get ******************//
 
 app.get("/", function(req, res){
   res.render("home");
 });
-
 
 app.get('/auth/google',
   // This is where we initiate authentication with Google.
@@ -119,13 +118,25 @@ app.get("/register", function(req, res){
 
 
 app.get("/secrets", function(req, res){
+  User.find({"secret": {$ne:null}}, function(err, foundUsers){    // Finds all users who have submitted secrets.
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUsers) {
+        res.render("secrets", {usersWithSecrets: foundUsers});
+      }
+    }
+  });
+});
+
+app.get("/submit", function(req, res){
   if (req.isAuthenticated()){
-    res.render("secrets");
+    res.render("submit");
   } else {
     res.redirect("/login");
   }
-});
 
+})
 
 // Logs the user out when they click the logout button.
 app.get("/logout", function(req, res){
@@ -138,6 +149,9 @@ app.get("/logout", function(req, res){
   });
 });
 
+
+
+//****************** app.post ******************//
 
 app.post("/register", function(req, res){
   User.register({username: req.body.username}, req.body.password, function(err, user){
@@ -166,6 +180,25 @@ app.post("/login", function(req, res){
       passport.authenticate("local")(req, res, function(){
         res.redirect("/secrets");
       });
+    }
+  });
+});
+
+
+app.post("/submit", function(req, res){
+  const submittedSecret = req.body.secret;
+  console.log(req.user.id);
+
+  User.findById(req.user.id, function(err, foundUser){
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function(){
+          res.redirect("/secrets");
+        });
+      }
     }
   });
 });
